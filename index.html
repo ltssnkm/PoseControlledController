@@ -1,0 +1,2168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pose Rover Arena — Physical Training &amp; Robot Controller</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* Base typography and smooth animations */
+    body {
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .canvas-grid {
+      background-image:
+        linear-gradient(to right, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+    @keyframes pulseSoft {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    .animate-pulse-soft {
+      animation: pulseSoft 2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body id="app-body" class="min-h-screen antialiased transition-colors duration-300 bg-slate-950 text-slate-100">
+  <!-- Main Application Container -->
+  <div id="app-shell" class="mx-auto max-w-7xl px-3 sm:px-6 py-4 sm:py-6 space-y-5">
+
+    <!-- Top Navigation & Mode Bar -->
+    <header class="rounded-2xl border border-slate-800 bg-slate-900/90 p-4 sm:p-5 shadow-xl">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div class="space-y-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/15 border border-indigo-400/30 px-3 py-1 text-xs font-semibold text-indigo-300">
+              <span>🤖</span> Pose Rover Arena
+            </span>
+            <span id="mode-badge" class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 px-3 py-1 text-xs font-semibold text-emerald-300">
+              <span>⚡</span> Kids Active Mode
+            </span>
+            <span id="ble-header-pill" class="inline-flex items-center gap-1.5 rounded-full bg-slate-800 border border-slate-700 px-3 py-1 text-xs font-medium text-amber-300">
+              <span class="h-2 w-2 rounded-full bg-amber-400"></span> Simulated BLE
+            </span>
+          </div>
+          <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+            Pose-Controlled Physical Training &amp; Robot Controller
+          </h1>
+          <p id="mode-subtitle" class="text-xs sm:text-sm text-slate-400">
+            Drive your virtual rover or paired LEGO SPIKE / Sphero hub using body poses, custom triggers, or keyboard controls.
+          </p>
+        </div>
+
+        <!-- Mode & Layout Switchers -->
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Audience Mode Toggle -->
+          <div class="inline-flex rounded-xl bg-slate-950 p-1 border border-slate-800">
+            <button
+              id="btn-mode-kids"
+              type="button"
+              onclick="setAudienceMode('KIDS')"
+              class="rounded-lg px-3 py-2 text-xs sm:text-sm font-semibold bg-indigo-600 text-white shadow transition"
+            >
+              🧒 Kids Mode
+            </button>
+            <button
+              id="btn-mode-elderly"
+              type="button"
+              onclick="setAudienceMode('ELDERLY')"
+              class="rounded-lg px-3 py-2 text-xs sm:text-sm font-semibold text-slate-300 hover:text-white transition"
+            >
+              🌿 Elderly Care Mode
+            </button>
+          </div>
+
+          <!-- Voice Cue Toggle -->
+          <button
+            id="btn-voice-toggle"
+            type="button"
+            onclick="toggleVoiceCues()"
+            class="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs sm:text-sm font-semibold text-slate-200 transition"
+            title="Toggle spoken exercise coaching"
+          >
+            <span id="voice-icon">🔊</span>
+            <span id="voice-label">Voice On</span>
+          </button>
+
+          <!-- Layout Mode Switcher -->
+          <div class="inline-flex flex-wrap rounded-xl bg-slate-950 p-1 border border-slate-800 gap-1">
+            <button
+              id="layout-btn-SPLIT"
+              type="button"
+              onclick="setLayoutMode('SPLIT')"
+              class="rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-sky-600 text-white transition"
+            >
+              50/50 Split
+            </button>
+            <button
+              id="layout-btn-CAM_FULL"
+              type="button"
+              onclick="setLayoutMode('CAM_FULL')"
+              class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:text-white transition"
+            >
+              Cam Full
+            </button>
+            <button
+              id="layout-btn-CAR_FULL"
+              type="button"
+              onclick="setLayoutMode('CAR_FULL')"
+              class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:text-white transition"
+            >
+              Car Full
+            </button>
+            <button
+              id="layout-btn-GRID"
+              type="button"
+              onclick="setLayoutMode('GRID')"
+              class="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:text-white transition"
+            >
+              Full Hub
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Elderly Posture & Speed Options (Shown when Elderly Mode is active) -->
+      <div id="elderly-controls-bar" class="hidden mt-4 pt-4 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-emerald-300">Posture Support:</span>
+          <button
+            id="btn-posture-seated"
+            type="button"
+            onclick="setPostureMode('SEATED')"
+            class="rounded-lg px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white transition"
+          >
+            🪑 Seated Friendly
+          </button>
+          <button
+            id="btn-posture-standing"
+            type="button"
+            onclick="setPostureMode('STANDING')"
+            class="rounded-lg px-3 py-1.5 text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white transition"
+          >
+            🧍 Standing Gentle
+          </button>
+        </div>
+        <div class="flex items-center gap-3">
+          <label for="gentle-speed-slider" class="text-xs font-semibold text-slate-300">
+            Gentle Pace: <span id="gentle-speed-value" class="text-emerald-300">45%</span>
+          </label>
+          <input
+            id="gentle-speed-slider"
+            type="range"
+            min="25"
+            max="75"
+            value="45"
+            oninput="updateGentleSpeed(this.value)"
+            class="w-32 accent-emerald-400 cursor-pointer"
+          />
+        </div>
+      </div>
+    </header>
+
+    <!-- Guided Exercise Banner -->
+    <section class="rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/60 p-4 sm:p-5 shadow-lg">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div class="space-y-1.5 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="rounded-md bg-indigo-500/20 border border-indigo-400/30 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-indigo-300">
+              Guided Exercise
+            </span>
+            <span id="exercise-goal-badge" class="rounded-md bg-emerald-500/20 border border-emerald-400/30 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-emerald-300">
+              Goal: FORWARD
+            </span>
+            <span id="exercise-pose-hint" class="text-xs text-slate-400">
+              Trigger: Hands Up
+            </span>
+          </div>
+          <h2 id="exercise-title" class="text-lg sm:text-xl font-bold text-white">
+            Reach Both Hands High to Drive Forward!
+          </h2>
+          <p id="exercise-desc" class="text-xs sm:text-sm text-slate-300">
+            Stretch arms upward toward the sky to power your rover ahead and collect glowing stars.
+          </p>
+          <div class="pt-1">
+            <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+              <span>Range of Motion / Pose Confidence</span>
+              <span id="rom-confidence-label" class="font-semibold text-indigo-300">0%</span>
+            </div>
+            <div class="h-2.5 w-full rounded-full bg-slate-800 overflow-hidden">
+              <div id="rom-confidence-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-indigo-500 via-sky-400 to-emerald-400 transition-all duration-200"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reps, Session Timer & Next Exercise -->
+        <div class="flex flex-wrap sm:flex-nowrap items-center gap-3">
+          <div class="rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-2.5 text-center min-w-[105px]">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Reps / Stars</div>
+            <div class="text-lg font-extrabold text-amber-300">
+              <span id="rep-counter">0</span> <span class="text-slate-600">/</span> ⭐ <span id="star-counter-top">0</span>
+            </div>
+          </div>
+          <div class="rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-2.5 text-center min-w-[96px]">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Session</div>
+            <div id="session-timer" class="text-lg font-extrabold font-mono text-sky-300">00:00</div>
+          </div>
+          <button
+            type="button"
+            onclick="nextExercise()"
+            class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] px-4 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-900/40 transition cursor-pointer"
+          >
+            <span>Next Move</span>
+            <span>→</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Workspace Grid (Supports 50/50 Split, Cam Full, Car Full, and Full Hub) -->
+    <main id="workspace-grid" class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+      <!-- Left / Pose Column -->
+      <section id="pose-panel" class="lg:col-span-6 space-y-4 rounded-2xl border border-slate-800 bg-slate-900/90 p-4 sm:p-5 shadow-xl">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+              <span>🕺</span> Pose Engine &amp; Custom Mapper
+            </h2>
+            <p id="pose-source-subtitle" class="text-xs text-slate-400">
+              Simulator Mode active — use camera, pose buttons, custom pose triggers, or arrow keys.
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="detected-pose-pill" class="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1 text-xs font-bold text-sky-300">
+              POSE: IDLE
+            </span>
+            <button
+              id="btn-fullscreen-cam"
+              type="button"
+              onclick="togglePanelFullscreen('pose-panel')"
+              class="rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-200 transition cursor-pointer"
+              title="Toggle fullscreen for Pose Camera"
+            >
+              ⛶ Expand
+            </button>
+          </div>
+        </div>
+
+        <!-- Pose Canvas / Webcam Stage -->
+        <div id="pose-stage-box" class="relative rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden aspect-video">
+          <video id="webcam-video" class="hidden w-full h-full object-cover scale-x-[-1]" playsinline muted></video>
+          <canvas id="pose-canvas" class="w-full h-full block"></canvas>
+
+          <!-- Top-left Stage Badge -->
+          <div class="absolute top-3 left-3 flex items-center gap-2">
+            <span id="stage-mode-badge" class="rounded-full bg-slate-900/85 backdrop-blur border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200">
+              🎮 Interactive Pose Simulator
+            </span>
+          </div>
+
+          <!-- Top-right Confidence Badge -->
+          <div class="absolute top-3 right-3">
+            <span id="pose-conf-badge" class="rounded-full bg-emerald-950/90 border border-emerald-500/40 px-3 py-1 text-xs font-bold text-emerald-300">
+              Conf: 98%
+            </span>
+          </div>
+
+          <!-- Bottom Caption Overlay -->
+          <div class="absolute bottom-3 inset-x-3 flex justify-center pointer-events-none">
+            <div id="pose-status-caption" class="rounded-xl bg-slate-900/90 backdrop-blur border border-slate-700/80 px-3.5 py-1.5 text-xs sm:text-sm font-medium text-slate-100 text-center shadow">
+              Stand tall or trigger a pose below (Arrow Keys / WASD / Space / Esc) to drive.
+            </div>
+          </div>
+        </div>
+
+        <!-- Camera & Simulator Action Buttons -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <button
+            id="btn-toggle-camera"
+            type="button"
+            onclick="toggleWebcamPose()"
+            class="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-500 px-4 py-3 text-sm font-bold text-white shadow transition cursor-pointer"
+          >
+            <span>📷</span>
+            <span id="btn-camera-label">Start Webcam Pose</span>
+          </button>
+          <button
+            id="btn-cycle-sim"
+            type="button"
+            onclick="cycleSimulatedPose()"
+            class="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-3 text-sm font-bold text-slate-100 transition cursor-pointer"
+          >
+            <span>🕹️</span>
+            <span>Cycle Sim Pose</span>
+          </button>
+        </div>
+
+        <!-- Interactive Pose Trigger Tester (Hold or Click) -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold uppercase tracking-wider text-slate-400">Interactive Pose Trigger Tester (Hold or Click)</span>
+            <span class="text-slate-500 font-mono">↑ ↓ ← → · Space · Esc</span>
+          </div>
+          <div id="quick-pose-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
+        </div>
+
+        <!-- Customizable Pose-to-Action Mapper -->
+        <div class="rounded-xl border border-slate-800 bg-slate-950/75 p-3.5 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
+                <span>🎛️</span> Pose-to-Action Mapper (Redesign Poses)
+              </h3>
+              <p class="text-xs text-slate-400">Assign any pose trigger to each robot command and adjust sensitivity or hold time.</p>
+            </div>
+            <button
+              type="button"
+              onclick="resetPoseMappings()"
+              class="rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-200 transition cursor-pointer"
+            >
+              Reset Defaults
+            </button>
+          </div>
+
+          <!-- Presets, Sensitivity & Hold Time -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+            <div>
+              <label for="mapper-preset-select" class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Preset Profile
+              </label>
+              <select
+                id="mapper-preset-select"
+                onchange="applyMapperPreset(this.value)"
+                class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-slate-100 focus:outline-none focus:border-indigo-500"
+              >
+                <option value="DEFAULT">Standard Full-Body</option>
+                <option value="UPPER_BODY">Seated / Upper-Body Focus</option>
+                <option value="GENTLE_REACH">Gentle Rehab &amp; Mobility</option>
+              </select>
+            </div>
+            <div>
+              <label for="mapper-sensitivity" class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Sensitivity: <span id="mapper-sensitivity-val" class="text-sky-300">70%</span>
+              </label>
+              <input
+                id="mapper-sensitivity"
+                type="range"
+                min="25"
+                max="100"
+                value="70"
+                oninput="updateMapperSensitivity(this.value)"
+                class="w-full accent-sky-400 cursor-pointer"
+              />
+            </div>
+            <div>
+              <label for="mapper-hold-ms" class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Hold Delay: <span id="mapper-hold-val" class="text-indigo-300">120ms</span>
+              </label>
+              <input
+                id="mapper-hold-ms"
+                type="range"
+                min="0"
+                max="600"
+                step="40"
+                value="120"
+                oninput="updateMapperHoldDelay(this.value)"
+                class="w-full accent-indigo-400 cursor-pointer"
+              />
+            </div>
+          </div>
+
+          <!-- Per-Action Mapping Rows -->
+          <div id="pose-mapping-rows" class="space-y-2 pt-1"></div>
+        </div>
+      </section>
+
+      <!-- Right / Rover Arena & Bluetooth Controller Column -->
+      <div id="right-column" class="lg:col-span-6 space-y-5">
+
+        <!-- Virtual Rover Training Arena -->
+        <section id="arena-panel" class="rounded-2xl border border-slate-800 bg-slate-900/90 p-4 sm:p-5 shadow-xl space-y-3.5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                <span>🚀</span> Virtual Rover Training Arena
+              </h2>
+              <p class="text-xs text-slate-400">
+                Collect stars and pass checkpoints while avoiding training cones.
+              </p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="rounded-lg bg-amber-500/15 border border-amber-400/30 px-2.5 py-1 text-xs font-bold text-amber-300">
+                ⭐ Stars: <span id="arena-stars">0</span>
+              </span>
+              <span class="rounded-lg bg-sky-500/15 border border-sky-400/30 px-2.5 py-1 text-xs font-bold text-sky-300">
+                🚩 CP: <span id="arena-checkpoints">0</span>
+              </span>
+              <button
+                type="button"
+                onclick="resetArena()"
+                class="rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-200 transition cursor-pointer"
+              >
+                Reset Arena
+              </button>
+              <button
+                id="btn-fullscreen-arena"
+                type="button"
+                onclick="togglePanelFullscreen('arena-panel')"
+                class="rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-200 transition cursor-pointer"
+                title="Toggle fullscreen for Rover Arena"
+              >
+                ⛶ Expand
+              </button>
+            </div>
+          </div>
+
+          <!-- Command & Motor Speed Readout -->
+          <div class="flex flex-wrap items-center gap-2 text-xs font-mono">
+            <span id="rover-cmd-pill" class="rounded-md bg-slate-800 border border-slate-700 px-2.5 py-1 font-bold text-indigo-300">
+              CMD: IDLE
+            </span>
+            <span id="rover-motor-pill" class="rounded-md bg-slate-800 border border-slate-700 px-2.5 py-1 text-slate-300">
+              L: 0% | R: 0%
+            </span>
+          </div>
+
+          <!-- Top-Down Rover Arena Canvas -->
+          <div id="arena-canvas-wrap" class="relative rounded-2xl border border-slate-800 bg-slate-950 canvas-grid overflow-hidden h-[320px] sm:h-[360px]">
+            <canvas id="arena-canvas" class="w-full h-full block"></canvas>
+
+            <!-- Connection Mode Banner Inside Arena -->
+            <div class="absolute bottom-3 inset-x-3 flex justify-center pointer-events-none">
+              <div id="arena-ble-banner" class="rounded-full bg-slate-900/90 backdrop-blur border border-amber-500/40 px-3.5 py-1 text-xs font-semibold text-amber-300 shadow">
+                BLE not connected — Simulated BLE active
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Bluetooth Robot Controller Hub -->
+        <section id="ble-panel" class="rounded-2xl border border-slate-800 bg-slate-900/90 p-4 sm:p-5 shadow-xl space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                <span>📡</span> Bluetooth Robot Controller Hub
+              </h2>
+              <p class="text-xs text-slate-400">
+                Pair a real LEGO SPIKE or Sphero robot via Web Bluetooth GATT, or test with Virtual Car / Simulated BLE.
+              </p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span id="ble-status-badge" class="inline-flex items-center gap-2 rounded-full bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs font-semibold text-amber-300">
+                <span class="h-2 w-2 rounded-full bg-amber-400"></span> Simulated BLE (Disconnected)
+              </span>
+              <button
+                id="ble-connect-btn"
+                type="button"
+                onclick="handleBleConnectClick()"
+                class="rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2 text-xs sm:text-sm font-bold text-white shadow transition cursor-pointer"
+              >
+                Connect BLE
+              </button>
+              <button
+                id="ble-test-pulse-btn"
+                type="button"
+                onclick="runMotorPulseTest()"
+                class="rounded-xl border border-emerald-500/40 bg-emerald-950/60 hover:bg-emerald-900/60 px-3 py-2 text-xs font-bold text-emerald-300 transition cursor-pointer"
+                title="Send a brief 650ms forward pulse to verify motor movement"
+              >
+                ⚡ Test Motor Pulse
+              </button>
+            </div>
+          </div>
+
+          <!-- Web Bluetooth Capability & Environment Status Notice -->
+          <div id="ble-environment-notice" class="rounded-xl border border-emerald-500/30 bg-emerald-950/25 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-emerald-200">
+            <span id="ble-env-text">
+              Checking Web Bluetooth GATT support in this browser context...
+            </span>
+            <span id="ble-env-pill" class="shrink-0 rounded-md bg-emerald-900/70 border border-emerald-500/40 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-300">
+              GATT CHECK
+            </span>
+          </div>
+
+          <!-- Robot Target Selector Cards -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <button
+              id="target-card-VIRTUAL"
+              type="button"
+              onclick="selectRobotTarget('VIRTUAL')"
+              class="text-left rounded-xl border-2 border-sky-500 bg-sky-950/30 p-3 transition cursor-pointer"
+            >
+              <div class="flex items-center justify-between gap-1 mb-1">
+                <span class="text-sm font-bold text-white">🚗 Virtual Car</span>
+                <span class="rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-bold text-sky-300">BUILT-IN</span>
+              </div>
+              <p class="text-[11px] text-slate-300">Instant top-down arena physics &amp; simulated BLE telemetry.</p>
+            </button>
+
+            <button
+              id="target-card-LEGO_SPIKE"
+              type="button"
+              onclick="selectRobotTarget('LEGO_SPIKE')"
+              class="text-left rounded-xl border border-slate-800 bg-slate-950/70 hover:border-slate-600 p-3 transition cursor-pointer"
+            >
+              <div class="flex items-center justify-between gap-1 mb-1">
+                <span class="text-sm font-bold text-white">🧱 LEGO SPIKE</span>
+                <span class="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">LWP / UART</span>
+              </div>
+              <p class="text-[11px] text-slate-400">SPIKE Essential / Prime Ports A &amp; B via Web Bluetooth GATT.</p>
+            </button>
+
+            <button
+              id="target-card-SPHERO"
+              type="button"
+              onclick="selectRobotTarget('SPHERO')"
+              class="text-left rounded-xl border border-slate-800 bg-slate-950/70 hover:border-slate-600 p-3 transition cursor-pointer"
+            >
+              <div class="flex items-center justify-between gap-1 mb-1">
+                <span class="text-sm font-bold text-white">🔮 Sphero</span>
+                <span class="rounded bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-bold text-purple-300">BOLT / MINI</span>
+              </div>
+              <p class="text-[11px] text-slate-400">BLE Roll speed &amp; heading packets for Sphero robots.</p>
+            </button>
+          </div>
+
+          <!-- Motor Polarity Inversion Controls -->
+          <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <span class="font-semibold text-slate-300">
+              Motor Direction Polarity (Flip if a geared wheel spins backward):
+            </span>
+            <div class="flex items-center gap-4">
+              <label class="inline-flex items-center gap-2 cursor-pointer text-slate-200 font-medium">
+                <input id="invert-port-a" type="checkbox" onchange="updateBleStatusUI()" class="rounded accent-indigo-500" />
+                <span>Invert Port A</span>
+              </label>
+              <label class="inline-flex items-center gap-2 cursor-pointer text-slate-200 font-medium">
+                <input id="invert-port-b" type="checkbox" onchange="updateBleStatusUI()" class="rounded accent-indigo-500" />
+                <span>Invert Port B</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Live Packet Inspector & BLE Event Log -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="rounded-xl border border-slate-800 bg-slate-950 p-3 space-y-1.5">
+              <div id="ble-hub-inspector-title" class="text-[11px] font-bold uppercase tracking-wider text-sky-300">
+                VIRTUAL BLE TELEMETRY (SIMULATED)
+              </div>
+              <pre id="ble-telemetry-json" class="text-[11px] leading-relaxed text-emerald-300 font-mono overflow-x-auto max-h-44"></pre>
+              <p class="text-[10px] leading-snug text-slate-400 pt-1">
+                Tip: If connected via <span class="text-amber-300 font-mono">SPIKE_UART</span> (<span class="font-mono">fd02</span>) and motors don't spin directly, pair via <span class="text-sky-300 font-mono">LWP</span> (<span class="font-mono">1623</span>) or run a hub listener that reads BLE UART and drives Ports A &amp; B.
+              </p>
+            </div>
+
+            <div class="rounded-xl border border-slate-800 bg-slate-950 p-3 flex flex-col justify-between space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">BLE / Command Log</span>
+                <button
+                  type="button"
+                  onclick="clearBleLog()"
+                  class="text-[11px] font-semibold text-slate-400 hover:text-white cursor-pointer"
+                >
+                  Clear
+                </button>
+              </div>
+              <div id="ble-command-log" class="font-mono text-[11px] text-slate-300 space-y-1 overflow-y-auto max-h-40 pr-1"></div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Non-blocking Toast Message Box (replaces alert/confirm) -->
+  <div id="toast-banner" class="hidden fixed bottom-5 right-5 z-50 max-w-sm rounded-xl border border-indigo-400/40 bg-slate-900/95 px-4 py-3 text-xs sm:text-sm font-medium text-white shadow-2xl">
+    <span id="toast-message"></span>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. EXERCISE GUIDES, POSE DEFINITIONS & PRESET MAPPINGS
+    // =========================================================================
+    const POSE_TRIGGERS = [
+      { id: 'HANDS_UP', label: '🙌 Hands Up', hint: 'Raise both hands above shoulders', conf: 0.96 },
+      { id: 'ARMS_WIDE', label: '🙆 Arms Out Wide / T-Pose', hint: 'Extend arms out to the sides', conf: 0.94 },
+      { id: 'LEFT_HAND_UP', label: '🙋 Left Hand Up', hint: 'Lift left arm / lean left', conf: 0.93 },
+      { id: 'RIGHT_HAND_UP', label: '🙋‍♂️ Right Hand Up', hint: 'Lift right arm / lean right', conf: 0.93 },
+      { id: 'SQUAT_CROUCH', label: '🏋️ Squat / Knee Lift', hint: 'Lower stance or lift knee gently', conf: 0.92 },
+      { id: 'LEAN_LEFT', label: '⬅️ Lean / Step Left', hint: 'Shift torso or step to the left', conf: 0.91 },
+      { id: 'LEAN_RIGHT', label: '➡️ Lean / Step Right', hint: 'Shift torso or step to the right', conf: 0.91 },
+      { id: 'WAVE_CELEBRATE', label: '🎉 Wave / Victory', hint: 'Wave hand or raise arms for spin', conf: 0.95 },
+      { id: 'CHIN_TILT', label: '🙂 Chin Tilt / Gentle Nod', hint: 'Gentle head nod or light shift', conf: 0.90 },
+      { id: 'CENTER_REST', label: '🧘 Center / Rest', hint: 'Neutral relaxed posture', conf: 0.99 }
+    ];
+
+    const ROBOT_COMMANDS = [
+      { id: 'FORWARD', label: 'Drive Forward', keyHint: '↑ / W' },
+      { id: 'BACKWARD', label: 'Reverse Backward', keyHint: '↓ / S' },
+      { id: 'LEFT', label: 'Turn Left', keyHint: '← / A' },
+      { id: 'RIGHT', label: 'Turn Right', keyHint: '→ / D' },
+      { id: 'SPIN_CELEBRATE', label: 'Celebrate Spin', keyHint: 'SPACE' },
+      { id: 'IDLE', label: 'Stop / Idle', keyHint: 'ESC' }
+    ];
+
+    const MAPPING_PRESETS = {
+      DEFAULT: {
+        FORWARD: 'HANDS_UP',
+        BACKWARD: 'SQUAT_CROUCH',
+        LEFT: 'LEAN_LEFT',
+        RIGHT: 'LEAN_RIGHT',
+        SPIN_CELEBRATE: 'WAVE_CELEBRATE',
+        IDLE: 'CENTER_REST'
+      },
+      UPPER_BODY: {
+        FORWARD: 'HANDS_UP',
+        BACKWARD: 'ARMS_WIDE',
+        LEFT: 'LEFT_HAND_UP',
+        RIGHT: 'RIGHT_HAND_UP',
+        SPIN_CELEBRATE: 'WAVE_CELEBRATE',
+        IDLE: 'CENTER_REST'
+      },
+      GENTLE_REACH: {
+        FORWARD: 'LEFT_HAND_UP',
+        BACKWARD: 'RIGHT_HAND_UP',
+        LEFT: 'ARMS_WIDE',
+        RIGHT: 'CHIN_TILT',
+        SPIN_CELEBRATE: 'WAVE_CELEBRATE',
+        IDLE: 'CENTER_REST'
+      }
+    };
+
+    const EXERCISES = {
+      KIDS: [
+        {
+          command: 'FORWARD',
+          title: 'Reach Both Hands High to Drive Forward!',
+          desc: 'Stretch arms upward toward the sky to power your rover ahead and collect glowing stars.',
+          voice: 'Reach both hands high to drive forward!'
+        },
+        {
+          command: 'LEFT',
+          title: 'Steer Left Toward the Checkpoint!',
+          desc: 'Trigger your mapped Left pose to curve your rover smoothly to the left.',
+          voice: 'Trigger your left pose to steer left!'
+        },
+        {
+          command: 'RIGHT',
+          title: 'Steer Right Around the Cones!',
+          desc: 'Trigger your mapped Right pose to weave cleanly to the right.',
+          voice: 'Trigger your right pose to steer right!'
+        },
+        {
+          command: 'BACKWARD',
+          title: 'Squat or Reverse to Back Up!',
+          desc: 'Use your mapped Backward pose to back your rover out of tight spots.',
+          voice: 'Use your backward pose to reverse!'
+        },
+        {
+          command: 'SPIN_CELEBRATE',
+          title: 'Victory Wave Spin!',
+          desc: 'Celebrate with your mapped Spin pose after grabbing stars!',
+          voice: 'Do your celebration pose for a victory spin!'
+        }
+      ],
+      ELDERLY: [
+        {
+          command: 'FORWARD',
+          title: 'Gentle Arm Raise — Steady Forward Glide',
+          desc: 'Raise your arms comfortably within your natural range to guide the rover forward.',
+          voice: 'Raise your arms comfortably to move forward at a steady pace.'
+        },
+        {
+          command: 'LEFT',
+          title: 'Smooth Left Shoulder / Arm Shift',
+          desc: 'Perform a slow, controlled left turn movement without straining.',
+          voice: 'Gently perform your left movement to turn left.'
+        },
+        {
+          command: 'RIGHT',
+          title: 'Smooth Right Shoulder / Arm Shift',
+          desc: 'Perform a slow, controlled right turn movement at an unhurried pace.',
+          voice: 'Gently perform your right movement to turn right.'
+        },
+        {
+          command: 'SPIN_CELEBRATE',
+          title: 'Relaxed Celebration Turn',
+          desc: 'Perform your mapped celebration pose at an easy, comfortable pace.',
+          voice: 'Perform your celebration pose gently.'
+        }
+      ]
+    };
+
+    // =========================================================================
+    // 2. WEB BLUETOOTH GATT CONSTANTS & PACKET BUILDERS (LEGO SPIKE & SPHERO)
+    // =========================================================================
+    const SPIKE_UART_SERVICE = '0000fd02-0000-1000-8000-00805f9b34fb';
+    const SPIKE_UART_RX = '0000fd02-0001-1000-8000-00805f9b34fb';
+    const SPIKE_UART_TX = '0000fd02-0002-1000-8000-00805f9b34fb';
+    const NORDIC_UART_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+    const NORDIC_UART_RX = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+    const NORDIC_UART_TX = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+    const LWP_HUB_SERVICE = '00001623-1212-efde-1623-785feabcd123';
+    const LWP_HUB_CHAR = '00001624-1212-efde-1623-785feabcd123';
+    const SPHERO_SERVICE = '00010001-574f-4f20-5370-6865726f2121';
+    const SPHERO_CHAR = '00010002-574f-4f20-5370-6865726f2121';
+
+    const bleState = {
+      device: null,
+      server: null,
+      txCharacteristic: null,
+      protocol: null, // 'LWP' | 'SPIKE_UART' | 'NORDIC_UART' | 'SPHERO' | null
+      serviceUuid: null,
+      charUuid: null,
+      connected: false,
+      lastWriteStatus: 'IDLE'
+    };
+
+    /**
+     * Converts a signed speed percentage (-100..100) to a single signed int8 byte (0..255).
+     */
+    function toSignedInt8Byte(speedPct) {
+      const clamped = Math.max(-100, Math.min(100, Math.round(speedPct)));
+      return clamped < 0 ? 256 + clamped : clamped;
+    }
+
+    /**
+     * Encodes payload bytes into a COBS frame terminated with 0x00 for SPIKE UART.
+     */
+    function encodeCOBSFrame(payloadBytes) {
+      const out = [];
+      let codeIdx = 0;
+      out.push(0);
+      let code = 1;
+
+      for (let i = 0; i < payloadBytes.length; i++) {
+        const b = payloadBytes[i] & 0xff;
+        if (b === 0) {
+          out[codeIdx] = code;
+          codeIdx = out.length;
+          out.push(0);
+          code = 1;
+        } else {
+          out.push(b);
+          code++;
+          if (code === 0xff) {
+            out[codeIdx] = code;
+            codeIdx = out.length;
+            out.push(0);
+            code = 1;
+          }
+        }
+      }
+      out[codeIdx] = code;
+      out.push(0x00);
+      return new Uint8Array(out);
+    }
+
+    /**
+     * Builds LEGO Wireless Protocol (LWP 3.0) Port Output packets for Port A (0x00) and Port B (0x01).
+     */
+    function buildLWPPortMotorPackets(leftPct, rightPct) {
+      const portA = new Uint8Array([
+        0x08, 0x00, 0x81, 0x00, 0x11, 0x51, 0x00, toSignedInt8Byte(leftPct)
+      ]);
+      const portB = new Uint8Array([
+        0x08, 0x00, 0x81, 0x01, 0x11, 0x51, 0x00, toSignedInt8Byte(rightPct)
+      ]);
+      return [portA, portB];
+    }
+
+    /**
+     * Builds a COBS-framed SPIKE UART motor command for Ports A & B.
+     */
+    function buildSpikeUARTMotorPacket(leftPct, rightPct) {
+      return encodeCOBSFrame([
+        0xc0,
+        0x01,
+        toSignedInt8Byte(leftPct),
+        toSignedInt8Byte(rightPct)
+      ]);
+    }
+
+    /**
+     * Builds a Sphero APIv2 drive-with-heading packet.
+     */
+    function buildSpheroRollPacket(leftPct, rightPct) {
+      const avg = (leftPct + rightPct) / 2;
+      const diff = leftPct - rightPct;
+      const speedByte = Math.max(0, Math.min(255, Math.round((Math.abs(avg) / 100) * 255)));
+      const heading = ((Math.round(diff * 1.8) % 360) + 360) % 360;
+      return new Uint8Array([
+        0x8d, 0x0a, 0x16, 0x07, 0x01,
+        speedByte, (heading >> 8) & 0xff, heading & 0xff,
+        avg < 0 ? 0x01 : 0x00, 0xd8
+      ]);
+    }
+
+    /**
+     * Safely writes bytes to the active GATT characteristic.
+     */
+    async function writeBleBytes(charObj, bytes) {
+      if (!charObj || !bleState.connected) return false;
+      try {
+        if (typeof charObj.writeValueWithoutResponse === 'function') {
+          await charObj.writeValueWithoutResponse(bytes);
+        } else if (typeof charObj.writeValueWithResponse === 'function') {
+          await charObj.writeValueWithResponse(bytes);
+        } else {
+          await charObj.writeValue(bytes);
+        }
+        bleState.lastWriteStatus = 'OK';
+        return true;
+      } catch (err) {
+        bleState.lastWriteStatus = 'ERR: ' + (err && err.message ? err.message : 'Write failed');
+        appendBleLog('GATT write error: ' + bleState.lastWriteStatus);
+        return false;
+      }
+    }
+
+    /**
+     * Dispatches motor commands to the connected LEGO SPIKE or Sphero hub.
+     */
+    async function sendHardwareMotorCommand(leftPct, rightPct) {
+      if (!bleState.connected || !bleState.txCharacteristic) return;
+
+      const invA = Boolean(document.getElementById('invert-port-a')?.checked);
+      const invB = Boolean(document.getElementById('invert-port-b')?.checked);
+      const finalLeft = invA ? -leftPct : leftPct;
+      const finalRight = invB ? -rightPct : rightPct;
+
+      if (bleState.protocol === 'LWP') {
+        const [pktA, pktB] = buildLWPPortMotorPackets(finalLeft, finalRight);
+        await writeBleBytes(bleState.txCharacteristic, pktA);
+        await writeBleBytes(bleState.txCharacteristic, pktB);
+      } else if (bleState.protocol === 'SPIKE_UART' || bleState.protocol === 'NORDIC_UART') {
+        const frame = buildSpikeUARTMotorPacket(finalLeft, finalRight);
+        await writeBleBytes(bleState.txCharacteristic, frame);
+      } else if (bleState.protocol === 'SPHERO') {
+        const pkt = buildSpheroRollPacket(finalLeft, finalRight);
+        await writeBleBytes(bleState.txCharacteristic, pkt);
+      }
+    }
+
+    /**
+     * Requests a Bluetooth device and resolves a writable GATT characteristic.
+     */
+    async function connectRealBluetoothHub(targetHub) {
+      if (window.location.protocol === 'file:') {
+        appendBleLog('Notice: file:// origin may restrict Web Bluetooth in some OS/browser setups; http://localhost is recommended.');
+      }
+      if (!navigator.bluetooth || typeof navigator.bluetooth.requestDevice !== 'function') {
+        throw new Error('Web Bluetooth API is not supported in this browser.');
+      }
+
+      const optionalServices = targetHub === 'SPHERO'
+        ? [SPHERO_SERVICE]
+        : [LWP_HUB_SERVICE, SPIKE_UART_SERVICE, NORDIC_UART_SERVICE];
+
+      const device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices
+      });
+
+      device.addEventListener('gattserverdisconnected', () => {
+        bleState.connected = false;
+        bleState.server = null;
+        bleState.txCharacteristic = null;
+        bleState.protocol = null;
+        bleState.serviceUuid = null;
+        bleState.charUuid = null;
+        bleState.lastWriteStatus = 'DISCONNECTED';
+        updateBleStatusUI();
+        appendBleLog('Disconnected from GATT server "' + (device.name || 'Bluetooth Hub') + '".');
+      });
+
+      appendBleLog('Connecting GATT server to "' + (device.name || 'Bluetooth Hub') + '"...');
+      const server = await device.gatt.connect();
+
+      const candidates = targetHub === 'SPHERO'
+        ? [{ service: SPHERO_SERVICE, char: SPHERO_CHAR, protocol: 'SPHERO' }]
+        : [
+            { service: LWP_HUB_SERVICE, char: LWP_HUB_CHAR, protocol: 'LWP' },
+            { service: SPIKE_UART_SERVICE, char: SPIKE_UART_RX, protocol: 'SPIKE_UART' },
+            { service: SPIKE_UART_SERVICE, char: SPIKE_UART_TX, protocol: 'SPIKE_UART' },
+            { service: NORDIC_UART_SERVICE, char: NORDIC_UART_RX, protocol: 'NORDIC_UART' },
+            { service: NORDIC_UART_SERVICE, char: NORDIC_UART_TX, protocol: 'NORDIC_UART' }
+          ];
+
+      let resolvedProtocol = null;
+      let resolvedService = null;
+      let resolvedChar = null;
+
+      for (const cfg of candidates) {
+        try {
+          const svc = await server.getPrimaryService(cfg.service);
+          const ch = await svc.getCharacteristic(cfg.char);
+          resolvedProtocol = cfg.protocol;
+          resolvedService = cfg.service;
+          resolvedChar = ch;
+          break;
+        } catch (_) {}
+      }
+
+      if (!resolvedChar) {
+        try {
+          const services = await server.getPrimaryServices();
+          for (const svc of services) {
+            const chars = await svc.getCharacteristics();
+            const writable = chars.find(
+              c => c.properties && (c.properties.write || c.properties.writeWithoutResponse)
+            );
+            if (writable) {
+              resolvedProtocol = targetHub === 'SPHERO' ? 'SPHERO' : 'LWP';
+              resolvedService = svc.uuid;
+              resolvedChar = writable;
+              break;
+            }
+          }
+        } catch (enumErr) {
+          appendBleLog('Service fallback info: ' + enumErr.message);
+        }
+      }
+
+      if (!resolvedChar) {
+        throw new Error('Paired to device, but no writable motor characteristic was found.');
+      }
+
+      bleState.device = device;
+      bleState.server = server;
+      bleState.txCharacteristic = resolvedChar;
+      bleState.protocol = resolvedProtocol;
+      bleState.serviceUuid = resolvedService;
+      bleState.charUuid = resolvedChar.uuid;
+      bleState.connected = true;
+      bleState.lastWriteStatus = 'CONNECTED';
+
+      updateBleStatusUI();
+      appendBleLog(
+        'LIVE GATT CONNECTED "' + (device.name || 'Hub') + '" (' + resolvedProtocol +
+        ' · Svc ' + resolvedService.slice(0, 8) + '...)'
+      );
+    }
+
+    /**
+     * Disconnects active GATT connection if connected.
+     */
+    function disconnectRealBluetoothHub() {
+      try {
+        if (bleState.device && bleState.device.gatt && bleState.device.gatt.connected) {
+          bleState.device.gatt.disconnect();
+        }
+      } catch (_) {}
+      bleState.connected = false;
+      bleState.server = null;
+      bleState.txCharacteristic = null;
+      bleState.protocol = null;
+      bleState.serviceUuid = null;
+      bleState.charUuid = null;
+      bleState.lastWriteStatus = 'DISCONNECTED';
+      updateBleStatusUI();
+    }
+
+    // =========================================================================
+    // 3. APPLICATION STATE, ROVER ARENA & WEBCAM / MOTION TRACKING
+    // =========================================================================
+    const state = {
+      audienceMode: 'KIDS',       // 'KIDS' | 'ELDERLY'
+      postureMode: 'SEATED',      // 'SEATED' | 'STANDING'
+      gentleSpeed: 45,
+      voiceEnabled: true,
+      layoutMode: 'SPLIT',        // 'SPLIT' | 'CAM_FULL' | 'CAR_FULL' | 'GRID'
+      fullscreenPanelId: null,
+      exerciseIndex: 0,
+      reps: 0,
+      stars: 0,
+      checkpoints: 0,
+      sessionSeconds: 0,
+      selectedHub: 'VIRTUAL',     // 'VIRTUAL' | 'LEGO_SPIKE' | 'SPHERO'
+      activeTrigger: 'CENTER_REST',
+      simTriggerIndex: 0,
+      poseConfidence: 0.98,
+      cameraActive: false,
+      cameraStream: null,
+      prevFrameData: null,
+      lastGoalRepTime: 0,
+      mapper: {
+        preset: 'DEFAULT',
+        sensitivity: 70,
+        holdDelayMs: 120,
+        actionToTrigger: { ...MAPPING_PRESETS.DEFAULT }
+      }
+    };
+
+    const rover = {
+      x: 220,
+      y: 170,
+      angle: -Math.PI / 2,
+      leftSpeed: 0,
+      rightSpeed: 0,
+      command: 'IDLE',
+      trail: []
+    };
+
+    const arenaEntities = {
+      stars: [
+        { id: 1, x: 130, y: 80, collected: false },
+        { id: 2, x: 420, y: 75, collected: false },
+        { id: 3, x: 450, y: 255, collected: false },
+        { id: 4, x: 140, y: 265, collected: false }
+      ],
+      checkpoints: [
+        { id: 'CP 1', x: 290, y: 120, r: 24, passed: false },
+        { id: 'CP 2', x: 340, y: 220, r: 24, passed: false }
+      ],
+      cones: [
+        { x: 215, y: 115, r: 14 },
+        { x: 375, y: 155, r: 14 },
+        { x: 255, y: 245, r: 14 }
+      ]
+    };
+
+    let holdDebounceTimer = null;
+    let toastTimer = null;
+
+    /**
+     * Shows a non-blocking status toast instead of browser alert/confirm.
+     */
+    function showToast(msg) {
+      const banner = document.getElementById('toast-banner');
+      const text = document.getElementById('toast-message');
+      if (!banner || !text) return;
+      text.textContent = msg;
+      banner.classList.remove('hidden');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => banner.classList.add('hidden'), 3200);
+    }
+
+    /**
+     * Speaks short coaching cues using Web Speech API when enabled.
+     */
+    function speakCue(text) {
+      if (!state.voiceEnabled || !('speechSynthesis' in window)) return;
+      try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.rate = state.audienceMode === 'ELDERLY' ? 0.92 : 1.05;
+        utter.pitch = 1.0;
+        window.speechSynthesis.speak(utter);
+      } catch (_) {}
+    }
+
+    /**
+     * Appends a timestamped entry to the BLE / Command log.
+     */
+    function appendBleLog(message) {
+      const logEl = document.getElementById('ble-command-log');
+      if (!logEl) return;
+      const now = new Date();
+      const stamp = now.toTimeString().slice(0, 8);
+      const line = document.createElement('div');
+      line.textContent = '[' + stamp + '] ' + message;
+      logEl.prepend(line);
+      while (logEl.children.length > 50) {
+        logEl.removeChild(logEl.lastChild);
+      }
+    }
+
+    /**
+     * Clears the BLE / Command log.
+     */
+    function clearBleLog() {
+      const logEl = document.getElementById('ble-command-log');
+      if (logEl) logEl.innerHTML = '';
+    }
+
+    // =========================================================================
+    // 4. MODE, LAYOUT, EXERCISE & CUSTOM POSE MAPPER CONTROLS
+    // =========================================================================
+    function setAudienceMode(mode) {
+      state.audienceMode = mode;
+      state.exerciseIndex = 0;
+
+      const btnKids = document.getElementById('btn-mode-kids');
+      const btnElderly = document.getElementById('btn-mode-elderly');
+      const modeBadge = document.getElementById('mode-badge');
+      const subtitle = document.getElementById('mode-subtitle');
+      const elderlyBar = document.getElementById('elderly-controls-bar');
+
+      if (mode === 'KIDS') {
+        btnKids.className = 'rounded-lg px-3 py-2 text-xs sm:text-sm font-semibold bg-indigo-600 text-white shadow transition cursor-pointer';
+        btnElderly.className = 'rounded-lg px-3 py-2 text-xs sm:text-sm font-semibold text-slate-300 hover:text-white transition cursor-pointer';
+        modeBadge.className = 'inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 px-3 py-1 text-xs font-semibold text-emerald-300';
+        modeBadge.innerHTML = '<span>⚡</span> Kids Active Mode';
+        subtitle.textContent = 'Energetic movement challenges to guide your rover through stars and checkpoints.';
+        elderlyBar.classList.add('hidden');
+      } else {
+        btnElderly.className = 'rounded-lg px-3 py-2 text-xs sm:text-sm font-semibold bg-emerald-600 text-white shadow transition cursor-pointer';
+        btnKids.className = 'rounded-lg px-3 py-2 text-xs sm:text-sm font-semibold text-slate-300 hover:text-white transition cursor-pointer';
+        modeBadge.className = 'inline-flex items-center gap-1.5 rounded-full bg-teal-500/15 border border-teal-400/30 px-3 py-1 text-xs font-semibold text-teal-200';
+        modeBadge.innerHTML = '<span>🌿</span> Elderly Care Mode';
+        subtitle.textContent = 'Calm, low-impact mobility and upper-body exercises with seated & gentle pace options.';
+        elderlyBar.classList.remove('hidden');
+      }
+
+      renderExerciseCard();
+      speakCue(mode === 'ELDERLY' ? 'Elderly Care Mode active.' : 'Kids Active Mode active.');
+    }
+
+    function setPostureMode(posture) {
+      state.postureMode = posture;
+      const seatedBtn = document.getElementById('btn-posture-seated');
+      const standingBtn = document.getElementById('btn-posture-standing');
+      if (posture === 'SEATED') {
+        seatedBtn.className = 'rounded-lg px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white transition cursor-pointer';
+        standingBtn.className = 'rounded-lg px-3 py-1.5 text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white transition cursor-pointer';
+      } else {
+        standingBtn.className = 'rounded-lg px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white transition cursor-pointer';
+        seatedBtn.className = 'rounded-lg px-3 py-1.5 text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white transition cursor-pointer';
+      }
+      showToast('Posture set to ' + (posture === 'SEATED' ? 'Seated Friendly' : 'Standing Gentle'));
+    }
+
+    function updateGentleSpeed(val) {
+      state.gentleSpeed = Number(val);
+      const label = document.getElementById('gentle-speed-value');
+      if (label) label.textContent = state.gentleSpeed + '%';
+    }
+
+    function toggleVoiceCues() {
+      state.voiceEnabled = !state.voiceEnabled;
+      const icon = document.getElementById('voice-icon');
+      const label = document.getElementById('voice-label');
+      icon.textContent = state.voiceEnabled ? '🔊' : '🔇';
+      label.textContent = state.voiceEnabled ? 'Voice On' : 'Voice Off';
+      showToast(state.voiceEnabled ? 'Voice coaching enabled' : 'Voice coaching muted');
+    }
+
+    /**
+     * Switches between 50/50 Split, Cam Fullscreen, Car Fullscreen, and Full Hub.
+     */
+    function setLayoutMode(mode) {
+      state.layoutMode = mode;
+      state.fullscreenPanelId = null;
+
+      ['SPLIT', 'CAM_FULL', 'CAR_FULL', 'GRID'].forEach(m => {
+        const btn = document.getElementById('layout-btn-' + m);
+        if (!btn) return;
+        btn.className = m === mode
+          ? 'rounded-lg px-2.5 py-1.5 text-xs font-semibold bg-sky-600 text-white transition cursor-pointer'
+          : 'rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:text-white transition cursor-pointer';
+      });
+
+      const grid = document.getElementById('workspace-grid');
+      const posePanel = document.getElementById('pose-panel');
+      const rightCol = document.getElementById('right-column');
+      const arenaPanel = document.getElementById('arena-panel');
+      const blePanel = document.getElementById('ble-panel');
+
+      posePanel.classList.remove('hidden', 'lg:col-span-12', 'lg:col-span-6');
+      rightCol.classList.remove('hidden', 'lg:col-span-12', 'lg:col-span-6');
+      arenaPanel.classList.remove('hidden');
+      blePanel.classList.remove('hidden');
+
+      if (mode === 'SPLIT') {
+        grid.className = 'grid grid-cols-1 lg:grid-cols-12 gap-5 items-start';
+        posePanel.classList.add('lg:col-span-6');
+        rightCol.classList.add('lg:col-span-6');
+      } else if (mode === 'CAM_FULL') {
+        grid.className = 'grid grid-cols-1 gap-5';
+        posePanel.classList.add('lg:col-span-12');
+        rightCol.classList.add('hidden');
+      } else if (mode === 'CAR_FULL') {
+        grid.className = 'grid grid-cols-1 gap-5';
+        posePanel.classList.add('hidden');
+        rightCol.classList.add('lg:col-span-12');
+        blePanel.classList.add('hidden');
+      } else if (mode === 'GRID') {
+        grid.className = 'grid grid-cols-1 xl:grid-cols-12 gap-5 items-start';
+        posePanel.classList.add('lg:col-span-6');
+        rightCol.classList.add('lg:col-span-6');
+      }
+
+      setTimeout(() => {
+        resizeCanvases();
+        drawArena();
+        drawPoseStage();
+      }, 60);
+    }
+
+    /**
+     * Toggles browser Fullscreen API on either the Pose Camera panel or Rover Arena panel.
+     */
+    function togglePanelFullscreen(panelId) {
+      const el = document.getElementById(panelId);
+      if (!el) return;
+      try {
+        if (!document.fullscreenElement) {
+          el.requestFullscreen().catch(() => {
+            setLayoutMode(panelId === 'pose-panel' ? 'CAM_FULL' : 'CAR_FULL');
+          });
+        } else {
+          document.exitFullscreen().catch(() => setLayoutMode('SPLIT'));
+        }
+      } catch (_) {
+        setLayoutMode(panelId === 'pose-panel' ? 'CAM_FULL' : 'CAR_FULL');
+      }
+      setTimeout(() => {
+        resizeCanvases();
+        drawArena();
+        drawPoseStage();
+      }, 120);
+    }
+
+    function renderExerciseCard() {
+      const list = EXERCISES[state.audienceMode] || EXERCISES.KIDS;
+      const item = list[state.exerciseIndex % list.length];
+      const mappedTriggerId = state.mapper.actionToTrigger[item.command] || 'CENTER_REST';
+      const triggerObj = POSE_TRIGGERS.find(t => t.id === mappedTriggerId) || POSE_TRIGGERS[9];
+
+      document.getElementById('exercise-goal-badge').textContent = 'Goal: ' + item.command;
+      document.getElementById('exercise-pose-hint').textContent = 'Mapped Pose: ' + triggerObj.label;
+      document.getElementById('exercise-title').textContent = item.title;
+      document.getElementById('exercise-desc').textContent = item.desc;
+    }
+
+    function nextExercise() {
+      const list = EXERCISES[state.audienceMode] || EXERCISES.KIDS;
+      state.exerciseIndex = (state.exerciseIndex + 1) % list.length;
+      renderExerciseCard();
+      const current = list[state.exerciseIndex];
+      speakCue(current.voice);
+    }
+
+    function recordRepIfGoalMatches(command) {
+      const list = EXERCISES[state.audienceMode] || EXERCISES.KIDS;
+      const current = list[state.exerciseIndex % list.length];
+      const now = Date.now();
+      if (command === current.command && now - state.lastGoalRepTime > 1200) {
+        state.lastGoalRepTime = now;
+        state.reps += 1;
+        document.getElementById('rep-counter').textContent = state.reps;
+      }
+    }
+
+    // =========================================================================
+    // 5. POSE TRIGGERS, CUSTOM MAPPING & ROBOT COMMAND DISPATCH
+    // =========================================================================
+    function renderQuickPoseButtons() {
+      const container = document.getElementById('quick-pose-grid');
+      if (!container) return;
+      container.innerHTML = '';
+
+      const quickList = [
+        { triggerId: 'HANDS_UP', cmd: 'FORWARD', key: '↑/W' },
+        { triggerId: 'SQUAT_CROUCH', cmd: 'BACKWARD', key: '↓/S' },
+        { triggerId: 'LEAN_LEFT', cmd: 'LEFT', key: '←/A' },
+        { triggerId: 'LEAN_RIGHT', cmd: 'RIGHT', key: '→/D' },
+        { triggerId: 'WAVE_CELEBRATE', cmd: 'SPIN_CELEBRATE', key: 'SPACE' },
+        { triggerId: 'CENTER_REST', cmd: 'IDLE', key: 'ESC' }
+      ];
+
+      quickList.forEach(item => {
+        const tObj = POSE_TRIGGERS.find(t => t.id === item.triggerId) || POSE_TRIGGERS[9];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'flex flex-col items-start justify-between rounded-xl border border-slate-800 bg-slate-950/80 hover:border-indigo-500/60 hover:bg-slate-900 p-2.5 text-left transition cursor-pointer';
+        btn.innerHTML =
+          '<div class="w-full flex items-center justify-between gap-1">' +
+            '<span class="text-xs font-bold text-white truncate">' + tObj.label + '</span>' +
+            '<span class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono text-slate-400">' + item.key + '</span>' +
+          '</div>' +
+          '<span class="mt-1 text-[11px] font-semibold text-sky-300">→ ' + item.cmd + '</span>';
+
+        btn.addEventListener('mousedown', () => activatePoseTrigger(item.triggerId, 0.97));
+        btn.addEventListener('mouseup', () => {
+          if (item.triggerId !== 'CENTER_REST') activatePoseTrigger('CENTER_REST', 0.99);
+        });
+        btn.addEventListener('mouseleave', () => {
+          if (state.activeTrigger === item.triggerId && item.triggerId !== 'CENTER_REST') {
+            activatePoseTrigger('CENTER_REST', 0.99);
+          }
+        });
+        btn.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          activatePoseTrigger(item.triggerId, 0.97);
+        }, { passive: false });
+        btn.addEventListener('touchend', () => {
+          if (item.triggerId !== 'CENTER_REST') activatePoseTrigger('CENTER_REST', 0.99);
+        });
+        btn.addEventListener('click', () => {
+          activatePoseTrigger(item.triggerId, 0.97);
+          if (item.triggerId !== 'CENTER_REST') {
+            setTimeout(() => activatePoseTrigger('CENTER_REST', 0.99), 500);
+          }
+        });
+
+        container.appendChild(btn);
+      });
+    }
+
+    function renderPoseMapperRows() {
+      const container = document.getElementById('pose-mapping-rows');
+      if (!container) return;
+      container.innerHTML = '';
+
+      ROBOT_COMMANDS.forEach(cmdObj => {
+        const currentTrigger = state.mapper.actionToTrigger[cmdObj.id] || 'CENTER_REST';
+        const row = document.createElement('div');
+        row.className = 'flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-slate-800/90 bg-slate-900/70 px-3 py-2';
+
+        const leftInfo = document.createElement('div');
+        leftInfo.className = 'flex items-center gap-2';
+        leftInfo.innerHTML =
+          '<span class="text-xs font-bold text-indigo-300 w-28">' + cmdObj.id + '</span>' +
+          '<span class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono text-slate-400">' + cmdObj.keyHint + '</span>';
+
+        const rightControls = document.createElement('div');
+        rightControls.className = 'flex items-center gap-2 flex-1 sm:justify-end';
+
+        const select = document.createElement('select');
+        select.className = 'rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-slate-100 focus:outline-none focus:border-sky-500 max-w-[220px] w-full';
+        POSE_TRIGGERS.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t.id;
+          opt.textContent = t.label;
+          if (t.id === currentTrigger) opt.selected = true;
+          select.appendChild(opt);
+        });
+        select.addEventListener('change', (e) => {
+          state.mapper.actionToTrigger[cmdObj.id] = e.target.value;
+          renderExerciseCard();
+          showToast('Mapped ' + cmdObj.id + ' → ' + e.target.value);
+        });
+
+        const testBtn = document.createElement('button');
+        testBtn.type = 'button';
+        testBtn.className = 'rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-2.5 py-1.5 text-xs font-semibold text-sky-300 transition cursor-pointer';
+        testBtn.textContent = 'Test';
+        testBtn.addEventListener('click', () => {
+          const trig = state.mapper.actionToTrigger[cmdObj.id] || 'CENTER_REST';
+          activatePoseTrigger(trig, 0.98);
+          if (cmdObj.id !== 'IDLE') {
+            setTimeout(() => activatePoseTrigger('CENTER_REST', 0.99), 500);
+          }
+        });
+
+        rightControls.appendChild(select);
+        rightControls.appendChild(testBtn);
+        row.appendChild(leftInfo);
+        row.appendChild(rightControls);
+        container.appendChild(row);
+      });
+    }
+
+    function applyMapperPreset(presetKey) {
+      const preset = MAPPING_PRESETS[presetKey];
+      if (!preset) return;
+      state.mapper.preset = presetKey;
+      state.mapper.actionToTrigger = { ...preset };
+      renderPoseMapperRows();
+      renderExerciseCard();
+      showToast('Applied ' + presetKey.replace('_', ' ') + ' pose preset');
+    }
+
+    function resetPoseMappings() {
+      document.getElementById('mapper-preset-select').value = 'DEFAULT';
+      state.mapper.sensitivity = 70;
+      state.mapper.holdDelayMs = 120;
+      document.getElementById('mapper-sensitivity').value = 70;
+      document.getElementById('mapper-sensitivity-val').textContent = '70%';
+      document.getElementById('mapper-hold-ms').value = 120;
+      document.getElementById('mapper-hold-val').textContent = '120ms';
+      applyMapperPreset('DEFAULT');
+    }
+
+    function updateMapperSensitivity(val) {
+      state.mapper.sensitivity = Number(val);
+      document.getElementById('mapper-sensitivity-val').textContent = val + '%';
+    }
+
+    function updateMapperHoldDelay(val) {
+      state.mapper.holdDelayMs = Number(val);
+      document.getElementById('mapper-hold-val').textContent = val + 'ms';
+    }
+
+    /**
+     * Resolves a pose trigger ID into the user-mapped robot command.
+     */
+    function resolveCommandForTrigger(triggerId) {
+      for (const cmdObj of ROBOT_COMMANDS) {
+        if (state.mapper.actionToTrigger[cmdObj.id] === triggerId) {
+          return cmdObj.id;
+        }
+      }
+      return 'IDLE';
+    }
+
+    /**
+     * Activates a pose trigger after optional hold delay.
+     */
+    function activatePoseTrigger(triggerId, confidence = 0.95) {
+      clearTimeout(holdDebounceTimer);
+      const runApply = () => {
+        state.activeTrigger = triggerId;
+        state.poseConfidence = confidence;
+        const trigObj = POSE_TRIGGERS.find(t => t.id === triggerId) || POSE_TRIGGERS[9];
+        const cmd = resolveCommandForTrigger(triggerId);
+
+        document.getElementById('detected-pose-pill').textContent = 'POSE: ' + cmd;
+        document.getElementById('pose-conf-badge').textContent = 'Conf: ' + Math.round(confidence * 100) + '%';
+        document.getElementById('pose-status-caption').textContent = trigObj.label + ' → ' + cmd;
+
+        const confPct = triggerId === 'CENTER_REST' ? 12 : Math.round(confidence * 100);
+        document.getElementById('rom-confidence-label').textContent = confPct + '%';
+        document.getElementById('rom-confidence-bar').style.width = confPct + '%';
+
+        dispatchRobotCommand(cmd);
+        drawPoseStage();
+      };
+
+      if (state.mapper.holdDelayMs > 0 && triggerId !== 'CENTER_REST') {
+        holdDebounceTimer = setTimeout(runApply, state.mapper.holdDelayMs);
+      } else {
+        runApply();
+      }
+    }
+
+    function cycleSimulatedPose() {
+      const cycleList = ['HANDS_UP', 'LEAN_LEFT', 'LEAN_RIGHT', 'SQUAT_CROUCH', 'WAVE_CELEBRATE', 'CENTER_REST'];
+      state.simTriggerIndex = (state.simTriggerIndex + 1) % cycleList.length;
+      const nextTrig = cycleList[state.simTriggerIndex];
+      activatePoseTrigger(nextTrig, 0.96);
+    }
+
+    /**
+     * Computes left/right motor speeds, updates rover state, and sends BLE commands.
+     */
+    function dispatchRobotCommand(command, overrideSpeeds = null) {
+      rover.command = command;
+
+      const sensScale = 0.65 + (state.mapper.sensitivity / 100) * 0.45;
+      const baseSpeed = state.audienceMode === 'ELDERLY'
+        ? Math.round(state.gentleSpeed * sensScale)
+        : Math.round(72 * sensScale);
+
+      let left = 0;
+      let right = 0;
+
+      if (overrideSpeeds) {
+        left = overrideSpeeds.left;
+        right = overrideSpeeds.right;
+      } else {
+        switch (command) {
+          case 'FORWARD':
+            left = baseSpeed;
+            right = baseSpeed;
+            break;
+          case 'BACKWARD':
+            left = -Math.round(baseSpeed * 0.75);
+            right = -Math.round(baseSpeed * 0.75);
+            break;
+          case 'LEFT':
+            left = -Math.round(baseSpeed * 0.55);
+            right = Math.round(baseSpeed * 0.75);
+            break;
+          case 'RIGHT':
+            left = Math.round(baseSpeed * 0.75);
+            right = -Math.round(baseSpeed * 0.55);
+            break;
+          case 'SPIN_CELEBRATE':
+            left = Math.round(baseSpeed * 0.8);
+            right = -Math.round(baseSpeed * 0.8);
+            break;
+          case 'IDLE':
+          default:
+            left = 0;
+            right = 0;
+            break;
+        }
+      }
+
+      rover.leftSpeed = left;
+      rover.rightSpeed = right;
+
+      document.getElementById('rover-cmd-pill').textContent = 'CMD: ' + command;
+      document.getElementById('rover-motor-pill').textContent = 'L: ' + left + '% | R: ' + right + '%';
+
+      recordRepIfGoalMatches(command);
+      updateBleStatusUI();
+
+      if (bleState.connected) {
+        sendHardwareMotorCommand(left, right);
+        appendBleLog('GATT TX (' + bleState.protocol + ') -> ' + command + ' (L:' + left + '%, R:' + right + '%)');
+      } else if (state.selectedHub !== 'VIRTUAL' && command !== 'IDLE') {
+        appendBleLog('SIM BLE (' + state.selectedHub + ') -> ' + command + ' (L:' + left + '%, R:' + right + '%)');
+      }
+    }
+
+    async function runMotorPulseTest() {
+      appendBleLog('Running Motor Pulse Test (55% forward for 650ms -> stop)...');
+      dispatchRobotCommand('FORWARD', { left: 55, right: 55 });
+      setTimeout(() => {
+        dispatchRobotCommand('IDLE', { left: 0, right: 0 });
+        appendBleLog('Motor Pulse Test finished.');
+      }, 650);
+    }
+
+    // =========================================================================
+    // 6. WEBCAM POSE / OPTICAL MOTION ENGINE & CANVAS RENDERING
+    // =========================================================================
+    async function toggleWebcamPose() {
+      if (state.cameraActive) {
+        stopWebcamPose();
+        return;
+      }
+
+      const video = document.getElementById('webcam-video');
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('Webcam getUserMedia is not available in this browser.');
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+          audio: false
+        });
+        state.cameraStream = stream;
+        state.cameraActive = true;
+        state.prevFrameData = null;
+
+        video.srcObject = stream;
+        await video.play();
+
+        document.getElementById('btn-camera-label').textContent = 'Stop Camera';
+        document.getElementById('stage-mode-badge').textContent = '📷 Live Camera Pose Active';
+        document.getElementById('pose-source-subtitle').textContent = 'Live camera active — move arms/torso or use pose triggers & keys.';
+        showToast('Webcam started for pose & motion tracking');
+      } catch (err) {
+        appendBleLog('Camera notice: ' + (err && err.message ? err.message : 'Unable to open camera'));
+        showToast('Camera unavailable — continuing with Pose Simulator');
+      }
+    }
+
+    function stopWebcamPose() {
+      state.cameraActive = false;
+      state.prevFrameData = null;
+      if (state.cameraStream) {
+        state.cameraStream.getTracks().forEach(t => t.stop());
+        state.cameraStream = null;
+      }
+      const video = document.getElementById('webcam-video');
+      if (video) video.srcObject = null;
+
+      document.getElementById('btn-camera-label').textContent = 'Start Webcam Pose';
+      document.getElementById('stage-mode-badge').textContent = '🎮 Interactive Pose Simulator';
+      document.getElementById('pose-source-subtitle').textContent = 'Simulator Mode active — use camera, pose buttons, custom pose triggers, or arrow keys.';
+      drawPoseStage();
+    }
+
+    /**
+     * Analyzes webcam frame motion zones (top/left/right) to infer pose direction smoothly.
+     */
+    function processWebcamMotionFrame(canvas, ctx) {
+      const video = document.getElementById('webcam-video');
+      if (!state.cameraActive || !video || video.readyState < 2) return;
+
+      const w = canvas.width;
+      const h = canvas.height;
+
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, -w, 0, w, h);
+      ctx.restore();
+
+      const frame = ctx.getImageData(0, 0, w, h);
+      const data = frame.data;
+
+      if (state.prevFrameData && state.prevFrameData.length === data.length) {
+        let topDiff = 0;
+        let topCount = 0;
+        let leftDiff = 0;
+        let leftCount = 0;
+        let rightDiff = 0;
+        let rightCount = 0;
+
+        for (let y = 0; y < h; y += 4) {
+          for (let x = 0; x < w; x += 4) {
+            const idx = (y * w + x) * 4;
+            const diff =
+              Math.abs(data[idx] - state.prevFrameData[idx]) +
+              Math.abs(data[idx + 1] - state.prevFrameData[idx + 1]) +
+              Math.abs(data[idx + 2] - state.prevFrameData[idx + 2]);
+
+            if (y < h * 0.36) {
+              topDiff += diff;
+              topCount++;
+            }
+            if (x < w * 0.35 && y > h * 0.25 && y < h * 0.85) {
+              leftDiff += diff;
+              leftCount++;
+            }
+            if (x > w * 0.65 && y > h * 0.25 && y < h * 0.85) {
+              rightDiff += diff;
+              rightCount++;
+            }
+          }
+        }
+
+        const topAvg = topCount ? topDiff / topCount : 0;
+        const leftAvg = leftCount ? leftDiff / leftCount : 0;
+        const rightAvg = rightCount ? rightDiff / rightCount : 0;
+        const threshold = 24 - (state.mapper.sensitivity / 100) * 10;
+
+        if (topAvg > threshold && topAvg > leftAvg * 1.15 && topAvg > rightAvg * 1.15) {
+          activatePoseTrigger('HANDS_UP', 0.88);
+        } else if (leftAvg > threshold && leftAvg > rightAvg * 1.25) {
+          activatePoseTrigger('LEAN_LEFT', 0.86);
+        } else if (rightAvg > threshold && rightAvg > leftAvg * 1.25) {
+          activatePoseTrigger('LEAN_RIGHT', 0.86);
+        }
+      }
+
+      state.prevFrameData = new Uint8ClampedArray(data);
+    }
+
+    /**
+     * Draws either the live camera feed or the animated stick-figure pose simulator.
+     */
+    function drawPoseStage() {
+      const canvas = document.getElementById('pose-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      if (w === 0 || h === 0) return;
+
+      if (state.cameraActive) {
+        processWebcamMotionFrame(canvas, ctx);
+        return;
+      }
+
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = '#050814';
+      ctx.fillRect(0, 0, w, h);
+
+      // Subtle reference ring
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.16)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(w / 2, h * 0.52, Math.min(w, h) * 0.34, 0, Math.PI * 2);
+      ctx.stroke();
+
+      const cx = w / 2;
+      const baseHipY = h * 0.63;
+      const t = performance.now() / 450;
+
+      let leanX = 0;
+      let crouchY = 0;
+      let leftHand = { x: cx - 58, y: h * 0.55 };
+      let rightHand = { x: cx + 58, y: h * 0.55 };
+
+      switch (state.activeTrigger) {
+        case 'HANDS_UP':
+          leftHand = { x: cx - 42, y: h * 0.18 + Math.sin(t) * 5 };
+          rightHand = { x: cx + 42, y: h * 0.18 + Math.cos(t) * 5 };
+          break;
+        case 'ARMS_WIDE':
+          leftHand = { x: cx - Math.min(115, w * 0.25), y: h * 0.42 };
+          rightHand = { x: cx + Math.min(115, w * 0.25), y: h * 0.42 };
+          break;
+        case 'LEFT_HAND_UP':
+          leanX = -16;
+          leftHand = { x: cx - 56, y: h * 0.20 };
+          rightHand = { x: cx + 55, y: h * 0.56 };
+          break;
+        case 'RIGHT_HAND_UP':
+          leanX = 16;
+          leftHand = { x: cx - 55, y: h * 0.56 };
+          rightHand = { x: cx + 56, y: h * 0.20 };
+          break;
+        case 'SQUAT_CROUCH':
+          crouchY = 22;
+          leftHand = { x: cx - 48, y: h * 0.56 + crouchY };
+          rightHand = { x: cx + 48, y: h * 0.56 + crouchY };
+          break;
+        case 'LEAN_LEFT':
+          leanX = -28;
+          leftHand = { x: cx - 74, y: h * 0.46 };
+          rightHand = { x: cx + 24, y: h * 0.52 };
+          break;
+        case 'LEAN_RIGHT':
+          leanX = 28;
+          leftHand = { x: cx - 24, y: h * 0.52 };
+          rightHand = { x: cx + 74, y: h * 0.46 };
+          break;
+        case 'WAVE_CELEBRATE':
+          leftHand = { x: cx - 54, y: h * 0.22 + Math.sin(t * 2) * 14 };
+          rightHand = { x: cx + 54, y: h * 0.22 - Math.sin(t * 2) * 14 };
+          break;
+        case 'CHIN_TILT':
+          leanX = Math.sin(t) * 8;
+          break;
+        default:
+          leftHand = { x: cx - 52, y: h * 0.56 + Math.sin(t) * 3 };
+          rightHand = { x: cx + 52, y: h * 0.56 - Math.sin(t) * 3 };
+          break;
+      }
+
+      const shoulderX = cx + leanX;
+      const shoulderY = h * 0.40 + crouchY;
+      const hipX = cx + leanX * 0.55;
+      const hipY = baseHipY + crouchY * 0.6;
+      const headX = shoulderX + leanX * 0.25;
+      const headY = shoulderY - 34;
+
+      // Limbs
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+
+      // Torso
+      ctx.beginPath();
+      ctx.moveTo(shoulderX, shoulderY);
+      ctx.lineTo(hipX, hipY);
+      ctx.stroke();
+
+      // Arms
+      ctx.strokeStyle = '#fbbf24';
+      ctx.beginPath();
+      ctx.moveTo(shoulderX, shoulderY);
+      ctx.lineTo(leftHand.x, leftHand.y);
+      ctx.moveTo(shoulderX, shoulderY);
+      ctx.lineTo(rightHand.x, rightHand.y);
+      ctx.stroke();
+
+      // Legs
+      ctx.strokeStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.moveTo(hipX, hipY);
+      ctx.lineTo(hipX - 24, h * 0.84);
+      ctx.moveTo(hipX, hipY);
+      ctx.lineTo(hipX + 24, h * 0.84);
+      ctx.stroke();
+
+      // Joints
+      ctx.fillStyle = '#f472b6';
+      [[shoulderX, shoulderY], [hipX, hipY]].forEach(([jx, jy]) => {
+        ctx.beginPath();
+        ctx.arc(jx, jy, 6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Head
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.arc(headX, headY, 17, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // =========================================================================
+    // 7. ROVER ARENA PHYSICS, COLLISIONS & RENDERING
+    // =========================================================================
+    function resetArena() {
+      rover.x = 220;
+      rover.y = 170;
+      rover.angle = -Math.PI / 2;
+      rover.leftSpeed = 0;
+      rover.rightSpeed = 0;
+      rover.command = 'IDLE';
+      rover.trail = [];
+
+      state.stars = 0;
+      state.checkpoints = 0;
+      document.getElementById('arena-stars').textContent = '0';
+      document.getElementById('star-counter-top').textContent = '0';
+      document.getElementById('arena-checkpoints').textContent = '0';
+      document.getElementById('rover-cmd-pill').textContent = 'CMD: IDLE';
+      document.getElementById('rover-motor-pill').textContent = 'L: 0% | R: 0%';
+
+      arenaEntities.stars.forEach(s => { s.collected = false; });
+      arenaEntities.checkpoints.forEach(c => { c.passed = false; });
+      drawArena();
+      showToast('Arena reset — collect stars and pass checkpoints!');
+    }
+
+    function stepRoverPhysics(dt) {
+      const canvas = document.getElementById('arena-canvas');
+      if (!canvas || canvas.width === 0 || canvas.height === 0) return;
+
+      const w = canvas.width;
+      const h = canvas.height;
+
+      const avgSpeed = ((rover.leftSpeed + rover.rightSpeed) / 2) * 1.45;
+      const turnRate = ((rover.rightSpeed - rover.leftSpeed) / 100) * 2.6;
+
+      rover.angle += turnRate * dt;
+      rover.x += Math.cos(rover.angle) * avgSpeed * dt;
+      rover.y += Math.sin(rover.angle) * avgSpeed * dt;
+
+      // Clamp inside arena walls
+      const pad = 22;
+      rover.x = Math.max(pad, Math.min(w - pad, rover.x));
+      rover.y = Math.max(pad, Math.min(h - pad, rover.y));
+
+      // Cone avoidance bounce
+      arenaEntities.cones.forEach(cone => {
+        const dx = rover.x - cone.x;
+        const dy = rover.y - cone.y;
+        const dist = Math.hypot(dx, dy);
+        const minDist = cone.r + 16;
+        if (dist < minDist && dist > 0.001) {
+          rover.x = cone.x + (dx / dist) * minDist;
+          rover.y = cone.y + (dy / dist) * minDist;
+        }
+      });
+
+      // Star collection
+      arenaEntities.stars.forEach(star => {
+        if (!star.collected && Math.hypot(rover.x - star.x, rover.y - star.y) < 24) {
+          star.collected = true;
+          state.stars += 1;
+          document.getElementById('arena-stars').textContent = state.stars;
+          document.getElementById('star-counter-top').textContent = state.stars;
+          speakCue('Star collected!');
+        }
+      });
+
+      // Checkpoint pass
+      arenaEntities.checkpoints.forEach(cp => {
+        if (!cp.passed && Math.hypot(rover.x - cp.x, rover.y - cp.y) < cp.r + 12) {
+          cp.passed = true;
+          state.checkpoints += 1;
+          document.getElementById('arena-checkpoints').textContent = state.checkpoints;
+          speakCue(cp.id + ' reached!');
+        }
+      });
+
+      if (Math.abs(avgSpeed) > 2 || Math.abs(turnRate) > 0.05) {
+        rover.trail.push({ x: rover.x, y: rover.y });
+        if (rover.trail.length > 45) rover.trail.shift();
+      }
+    }
+
+    function drawArena() {
+      const canvas = document.getElementById('arena-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      if (w === 0 || h === 0) return;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Trail
+      if (rover.trail.length > 1) {
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        rover.trail.forEach((pt, idx) => {
+          if (idx === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        });
+        ctx.stroke();
+      }
+
+      // Checkpoints
+      arenaEntities.checkpoints.forEach(cp => {
+        ctx.save();
+        ctx.strokeStyle = cp.passed ? '#34d399' : '#38bdf8';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.arc(cp.x, cp.y, cp.r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = cp.passed ? '#a7f3d0' : '#bae6fd';
+        ctx.font = 'bold 11px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(cp.id, cp.x, cp.y + 4);
+        ctx.restore();
+      });
+
+      // Stars
+      arenaEntities.stars.forEach(star => {
+        if (star.collected) return;
+        ctx.save();
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = '20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('⭐', star.x, star.y);
+        ctx.restore();
+      });
+
+      // Training cones
+      arenaEntities.cones.forEach(cone => {
+        ctx.save();
+        ctx.fillStyle = '#f97316';
+        ctx.beginPath();
+        ctx.moveTo(cone.x, cone.y - cone.r);
+        ctx.lineTo(cone.x + cone.r * 0.85, cone.y + cone.r * 0.75);
+        ctx.lineTo(cone.x - cone.r * 0.85, cone.y + cone.r * 0.75);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      });
+
+      // Rover body
+      ctx.save();
+      ctx.translate(rover.x, rover.y);
+      ctx.rotate(rover.angle + Math.PI / 2);
+
+      // Wheels
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(-18, -11, 6, 22);
+      ctx.fillRect(12, -11, 6, 22);
+
+      // Chassis
+      ctx.fillStyle = '#6366f1';
+      ctx.strokeStyle = '#c7d2fe';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(-12, -15, 24, 30, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      // Nose / heading indicator
+      ctx.fillStyle = '#34d399';
+      ctx.beginPath();
+      ctx.moveTo(0, -19);
+      ctx.lineTo(-6, -11);
+      ctx.lineTo(6, -11);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // =========================================================================
+    // 8. BLUETOOTH HUB UI, ENVIRONMENT CHECKS & KEYBOARD BINDINGS
+    // =========================================================================
+    function detectBleEnvironment() {
+      const envText = document.getElementById('ble-env-text');
+      const envPill = document.getElementById('ble-env-pill');
+      const hasBle = Boolean(navigator.bluetooth && typeof navigator.bluetooth.requestDevice === 'function');
+      const isFile = window.location.protocol === 'file:';
+
+      if (hasBle && !isFile) {
+        envText.textContent = 'Web Bluetooth GATT is ready in this secure context. Select LEGO SPIKE or Sphero and click Connect BLE.';
+        envPill.textContent = 'WEB BLUETOOTH READY';
+        envPill.className = 'shrink-0 rounded-md bg-emerald-900/70 border border-emerald-500/40 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-300';
+      } else if (hasBle && isFile) {
+        envText.textContent = 'Opened via file:// — Web Bluetooth may prompt or be blocked on file:// in some setups. Serve over http://localhost in Chrome/Edge for best GATT pairing.';
+        envPill.textContent = 'FILE:// ORIGIN';
+        envPill.className = 'shrink-0 rounded-md bg-amber-900/70 border border-amber-500/40 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-300';
+      } else {
+        envText.textContent = 'Web Bluetooth is unavailable in this browser/context. Use Virtual Car / Simulated BLE or open in Chrome/Edge over HTTPS/localhost.';
+        envPill.textContent = 'SIMULATED ONLY';
+        envPill.className = 'shrink-0 rounded-md bg-slate-800 border border-slate-600 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-300';
+      }
+    }
+
+    function selectRobotTarget(hub) {
+      state.selectedHub = hub;
+      ['VIRTUAL', 'LEGO_SPIKE', 'SPHERO'].forEach(id => {
+        const card = document.getElementById('target-card-' + id);
+        if (!card) return;
+        if (id === hub) {
+          card.className = 'text-left rounded-xl border-2 border-sky-500 bg-sky-950/30 p-3 transition cursor-pointer';
+        } else {
+          card.className = 'text-left rounded-xl border border-slate-800 bg-slate-950/70 hover:border-slate-600 p-3 transition cursor-pointer';
+        }
+      });
+
+      if (hub === 'VIRTUAL' && bleState.connected) {
+        disconnectRealBluetoothHub();
+      }
+
+      updateBleStatusUI();
+      appendBleLog('Selected robot target: ' + hub);
+    }
+
+    async function handleBleConnectClick() {
+      if (bleState.connected) {
+        disconnectRealBluetoothHub();
+        appendBleLog('Disconnected BLE hub.');
+        return;
+      }
+
+      if (state.selectedHub === 'VIRTUAL') {
+        selectRobotTarget('LEGO_SPIKE');
+      }
+
+      const connectBtn = document.getElementById('ble-connect-btn');
+      const prevLabel = connectBtn.textContent;
+      connectBtn.textContent = 'Pairing...';
+      connectBtn.disabled = true;
+
+      try {
+        await connectRealBluetoothHub(state.selectedHub);
+      } catch (err) {
+        const msg = err && err.message ? err.message : 'Pairing cancelled or failed';
+        appendBleLog('BLE pairing note: ' + msg);
+        showToast(msg);
+        updateBleStatusUI();
+      } finally {
+        connectBtn.disabled = false;
+        if (!bleState.connected) {
+          connectBtn.textContent = prevLabel;
+        } else {
+          connectBtn.textContent = 'Disconnect BLE';
+        }
+      }
+    }
+
+    function updateBleStatusUI() {
+      const badge = document.getElementById('ble-status-badge');
+      const headerPill = document.getElementById('ble-header-pill');
+      const arenaBanner = document.getElementById('arena-ble-banner');
+      const connectBtn = document.getElementById('ble-connect-btn');
+      const jsonBox = document.getElementById('ble-telemetry-json');
+      const hubTitle = document.getElementById('ble-hub-inspector-title');
+
+      const invA = Boolean(document.getElementById('invert-port-a')?.checked);
+      const invB = Boolean(document.getElementById('invert-port-b')?.checked);
+      const portALabel = (invA ? -rover.leftSpeed : rover.leftSpeed) + '%';
+      const portBLabel = (invB ? -rover.rightSpeed : rover.rightSpeed) + '%';
+
+      if (bleState.connected) {
+        badge.className = 'inline-flex items-center gap-2 rounded-full bg-emerald-950 border border-emerald-500/50 px-3 py-1.5 text-xs font-semibold text-emerald-300';
+        badge.innerHTML = '<span class="h-2 w-2 rounded-full bg-emerald-400"></span> BLE Connected (' + (bleState.protocol || 'GATT') + ')';
+
+        headerPill.className = 'inline-flex items-center gap-1.5 rounded-full bg-emerald-950 border border-emerald-500/40 px-3 py-1 text-xs font-semibold text-emerald-300';
+        headerPill.innerHTML = '<span class="h-2 w-2 rounded-full bg-emerald-400"></span> Live BLE: ' + (bleState.device?.name || state.selectedHub);
+
+        arenaBanner.className = 'rounded-full bg-emerald-950/90 backdrop-blur border border-emerald-500/50 px-3.5 py-1 text-xs font-semibold text-emerald-300 shadow';
+        arenaBanner.textContent = 'Live BLE connected (' + (bleState.device?.name || state.selectedHub) + ') · Ports A/B: ' + portALabel + ' / ' + portBLabel;
+
+        connectBtn.textContent = 'Disconnect BLE';
+        hubTitle.textContent = state.selectedHub + ' LIVE GATT (' + (bleState.device?.name || 'Connected') + ')';
+      } else {
+        badge.className = 'inline-flex items-center gap-2 rounded-full bg-slate-950 border border-slate-700 px-3 py-1.5 text-xs font-semibold text-amber-300';
+        badge.innerHTML = '<span class="h-2 w-2 rounded-full bg-amber-400"></span> Simulated BLE (Disconnected)';
+
+        headerPill.className = 'inline-flex items-center gap-1.5 rounded-full bg-slate-800 border border-slate-700 px-3 py-1 text-xs font-medium text-amber-300';
+        headerPill.innerHTML = '<span class="h-2 w-2 rounded-full bg-amber-400"></span> Simulated BLE';
+
+        arenaBanner.className = 'rounded-full bg-slate-900/90 backdrop-blur border border-amber-500/40 px-3.5 py-1 text-xs font-semibold text-amber-300 shadow';
+        arenaBanner.textContent = 'BLE not connected — Simulated BLE active';
+
+        connectBtn.textContent = 'Connect BLE';
+        hubTitle.textContent = state.selectedHub + ' BLE TELEMETRY (SIMULATED)';
+      }
+
+      if (jsonBox) {
+        const telemetry = {
+          hub: state.selectedHub,
+          bleConnected: bleState.connected,
+          protocol: bleState.protocol,
+          deviceName: bleState.device ? (bleState.device.name || 'Bluetooth Hub') : null,
+          serviceUuid: bleState.serviceUuid,
+          charUuid: bleState.charUuid,
+          lastWriteStatus: bleState.lastWriteStatus,
+          invert: { portA: invA, portB: invB },
+          ports: { A: portALabel, B: portBLabel },
+          command: rover.command
+        };
+        jsonBox.textContent = JSON.stringify(telemetry, null, 2);
+      }
+    }
+
+    function resizeCanvases() {
+      const poseCanvas = document.getElementById('pose-canvas');
+      const poseBox = document.getElementById('pose-stage-box');
+      if (poseCanvas && poseBox) {
+        poseCanvas.width = poseBox.clientWidth;
+        poseCanvas.height = poseBox.clientHeight;
+      }
+
+      const arenaCanvas = document.getElementById('arena-canvas');
+      const arenaWrap = document.getElementById('arena-canvas-wrap');
+      if (arenaCanvas && arenaWrap) {
+        arenaCanvas.width = arenaWrap.clientWidth;
+        arenaCanvas.height = arenaWrap.clientHeight;
+      }
+    }
+
+    function bindKeyboardControls() {
+      window.addEventListener('keydown', (e) => {
+        if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+        const key = e.key.toLowerCase();
+        if (key === 'arrowup' || key === 'w') {
+          e.preventDefault();
+          activatePoseTrigger(state.mapper.actionToTrigger.FORWARD || 'HANDS_UP', 0.99);
+        } else if (key === 'arrowdown' || key === 's') {
+          e.preventDefault();
+          activatePoseTrigger(state.mapper.actionToTrigger.BACKWARD || 'SQUAT_CROUCH', 0.99);
+        } else if (key === 'arrowleft' || key === 'a') {
+          e.preventDefault();
+          activatePoseTrigger(state.mapper.actionToTrigger.LEFT || 'LEAN_LEFT', 0.99);
+        } else if (key === 'arrowright' || key === 'd') {
+          e.preventDefault();
+          activatePoseTrigger(state.mapper.actionToTrigger.RIGHT || 'LEAN_RIGHT', 0.99);
+        } else if (e.code === 'Space') {
+          e.preventDefault();
+          activatePoseTrigger(state.mapper.actionToTrigger.SPIN_CELEBRATE || 'WAVE_CELEBRATE', 0.99);
+        } else if (key === 'escape') {
+          activatePoseTrigger('CENTER_REST', 0.99);
+        }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        const key = e.key.toLowerCase();
+        if (['arrowup', 'w', 'arrowdown', 's', 'arrowleft', 'a', 'arrowright', 'd'].includes(key) || e.code === 'Space') {
+          activatePoseTrigger('CENTER_REST', 0.99);
+        }
+      });
+    }
+
+    // =========================================================================
+    // 9. INITIALIZATION & MAIN ANIMATION LOOP
+    // =========================================================================
+    window.addEventListener('resize', () => {
+      resizeCanvases();
+      drawPoseStage();
+      drawArena();
+    });
+
+    setInterval(() => {
+      state.sessionSeconds += 1;
+      const mins = String(Math.floor(state.sessionSeconds / 60)).padStart(2, '0');
+      const secs = String(state.sessionSeconds % 60).padStart(2, '0');
+      const timerEl = document.getElementById('session-timer');
+      if (timerEl) timerEl.textContent = mins + ':' + secs;
+    }, 1000);
+
+    let lastFrameTime = performance.now();
+    function mainLoop(now) {
+      const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
+      lastFrameTime = now;
+
+      stepRoverPhysics(dt);
+      drawArena();
+      drawPoseStage();
+
+      requestAnimationFrame(mainLoop);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      resizeCanvases();
+      renderQuickPoseButtons();
+      renderPoseMapperRows();
+      renderExerciseCard();
+      detectBleEnvironment();
+      updateBleStatusUI();
+      bindKeyboardControls();
+      appendBleLog('Pose Rover Arena initialized. Select LEGO SPIKE or Sphero and click Connect BLE.');
+      requestAnimationFrame(mainLoop);
+    });
+  </script>
+</body>
+</html>
